@@ -5,7 +5,7 @@ const client = new Discord.Client();
 const prefix = 'k';
 
 client.once('ready', () => {
-    console.log('your bot name is online!');
+    console.log('kryder!');
 });
 
 
@@ -16,9 +16,9 @@ client.on('message', message =>{
     const command = args.shift().toLowerCase();
 
     if(command === 'rydder'){
-        message.channel.send('Krydder C:');
+        message.channel.send('nam nam krydder :D');
     }
 });
 
-client.login('NzYwOTE0Mzg4MTA5NzU0NDA5.X3S-vw.iyheaAnZRGn1cg8SKx7RgUYiabM');
+client.login('nice try');
 
