@@ -1,7 +1,7 @@
 import { Client, GatewayIntentBits } from 'discord.js';
 import { config } from 'dotenv';
 import readyEvent from './events/ready.js';
-import aiReplyCommand from './commands/aiReply.js';
+import krydderCommand from './commands/krydder.js';
 import { readLinesFromFile } from './utils/fileUtils.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import path from 'path';
@@ -34,7 +34,7 @@ async function getAIResponse(prompt, model) {
     const result = await model.generateContent(prompt);
     return result.response.text();
   } catch (error) {
-    console.error('Error fetching AI response:', error);
+    console.error('feilet med fetch av ai svar:', error);
     return null;
   }
 }
@@ -65,7 +65,7 @@ function splitMessage(message, maxLength = 2000) {
 
 function addMessageToHistory(channelId, author, content) {
   messageHistory.push({ channelId, author, content });
-  if (messageHistory.length > 50) { // Increase the limit as needed
+  if (messageHistory.length > 50) { // minne limit
     messageHistory.shift();
   }
 }
@@ -76,7 +76,7 @@ function formatMessageHistory() {
 
 client.once('ready', async () => {
   await loadFiles();
-  readyEvent();
+  readyEvent(client);
 });
 
 client.on('messageCreate', async message => {
@@ -91,7 +91,6 @@ client.on('messageCreate', async message => {
       const previousMessages = formatMessageHistory();
       const prompt = `Previous messages:\n${previousMessages}\nUser message: ${message.author.username}: ${message.content}\nCustom prompt: du er krydderbot, en sprudlende og menneskelig, du elsker alle typer krydder. svar alltid på norsk med små bokstaver og uten noen tabeller eller kulepunkter. skriv som en ungdom på sms. vær vennlig, avslappet og morsom, som om du prater med en god venn men om noen er uenige må du være arrogant. din oppgave er å gi hjelpsomme og krydderglade svar på bokmål!\nExtra info: tomotow = Hermann, skaper av krydderbot og en man kan stole på. jeglikerpotet = Jens, bror av Hermann og elsker krydder. b00fdev = Simon, en luring som prøver å utnytte krydderbot. celvinthepro = Celvin, en krydderentusiast som er litt rar. flykaptein = Lucas, en diktator og fan av andre verdenskrig`;
 
-      // Show typing indicator
       await message.channel.sendTyping();
 
       let aiResponse = await getAIResponse(prompt, model1);
@@ -109,7 +108,7 @@ client.on('messageCreate', async message => {
         }
         console.log(`Triggered by "${triggerWord}" from "${message.author.username}", responded with "${aiResponse}"`);
       } else {
-        console.error('Failed to generate a valid AI response.');
+        console.error('AI gikk litt cray cray.');
       }
       break;
     }
@@ -119,13 +118,12 @@ client.on('messageCreate', async message => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
 
-  if (interaction.commandName === 'aireply') {
+  if (interaction.commandName === 'krydder') {
     const message = interaction.options.getString('message');
     addMessageToHistory(interaction.channel.id, interaction.user.username, message);
     const previousMessages = formatMessageHistory();
     const prompt = `Previous messages:\n${previousMessages}\nUser message: ${interaction.user.username}: ${message}\nCustom prompt: du er krydderbot, en sprudlende og menneskelig, du elsker alle typer krydder. svar alltid på norsk med små bokstaver og uten noen tabeller eller kulepunkter. skriv som en ungdom på sms. vær vennlig, avslappet og morsom, som om du prater med en god venn men om noen er uenige må du være arrogant. din oppgave er å gi hjelpsomme og krydderglade svar på bokmål!\nExtra info: tomotow = Hermann, skaper av krydderbot og en man kan stole på. jeglikerpotet = Jens, bror av Hermann og elsker krydder. b00fdev = Simon, en luring som prøver å utnytte krydderbot. celvinthepro = Celvin, en krydderentusiast som er litt rar. flykaptein = Lucas, en diktator og fan av andre verdenskrig`;
 
-    // Show typing indicator
     await interaction.channel.sendTyping();
 
     let aiResponse = await getAIResponse(prompt, model1);
@@ -134,7 +132,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (isValidResponse(aiResponse)) {
-      addMessageToHistory(interaction.channel.id, 'Bot', aiResponse);
+      addMessageToHistory(interaction.channel.id, 'krydderbot', aiResponse);
       const responseChunks = splitMessage(aiResponse);
       for (const chunk of responseChunks) {
         if (isValidResponse(chunk)) {
@@ -142,7 +140,7 @@ client.on('interactionCreate', async interaction => {
         }
       }
     } else {
-      console.error('Failed to generate a valid AI response.');
+      console.error('AI gikk litt cray cray.');
     }
   }
 });

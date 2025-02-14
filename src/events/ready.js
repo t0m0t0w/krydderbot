@@ -1,3 +1,3 @@
-export default function readyEvent() {
-  console.log('Bot is ready!');
+export default function readyEvent(client) {
+  console.log(`selveste ${client.user.tag} er klar til krydring!`);
 }
