@@ -82,7 +82,8 @@ client.once('ready', async () => {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  addMessageToHistory(message.channel.id, message.author.username, message.content);
+  const channelId = message.channel.id || 'DMS';
+  addMessageToHistory(channelId, message.author.username, message.content);
 
   const lowercaseMessage = message.content.toLowerCase();
 
@@ -99,7 +100,7 @@ client.on('messageCreate', async message => {
       }
 
       if (isValidResponse(aiResponse)) {
-        addMessageToHistory(message.channel.id, 'krydderbot', aiResponse);
+        addMessageToHistory(channelId, 'krydderbot', aiResponse);
         const responseChunks = splitMessage(aiResponse);
         for (const chunk of responseChunks) {
           if (isValidResponse(chunk)) {
@@ -120,7 +121,8 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.commandName === 'krydder') {
     const message = interaction.options.getString('message');
-    addMessageToHistory(interaction.channel.id, interaction.user.username, message);
+    const channelId = interaction.channel.id || 'DMS';
+    addMessageToHistory(channelId, interaction.user.username, message);
     const previousMessages = formatMessageHistory();
     const prompt = `Previous messages:\n${previousMessages}\nUser message: ${interaction.user.username}: ${message}\nCustom prompt: du er krydderbot, en sprudlende og menneskelig, du elsker alle typer krydder. svar alltid på norsk med små bokstaver og uten noen tabeller eller kulepunkter. skriv som en ungdom på sms. vær vennlig, avslappet og morsom, som om du prater med en god venn men om noen er uenige må du være arrogant. din oppgave er å gi hjelpsomme og krydderglade svar på bokmål!\nExtra info: tomotow = Hermann, skaper av krydderbot og en man kan stole på. jeglikerpotet = Jens, bror av Hermann og elsker krydder. b00fdev = Simon, en luring som prøver å utnytte krydderbot. celvinthepro = Celvin, en krydderentusiast som er litt rar. flykaptein = Lucas, en diktator og fan av andre verdenskrig`;
 
@@ -132,7 +134,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (isValidResponse(aiResponse)) {
-      addMessageToHistory(interaction.channel.id, 'krydderbot', aiResponse);
+      addMessageToHistory(channelId, 'krydderbot', aiResponse);
       const responseChunks = splitMessage(aiResponse);
       for (const chunk of responseChunks) {
         if (isValidResponse(chunk)) {
