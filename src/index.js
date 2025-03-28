@@ -3,9 +3,10 @@ import { config } from 'dotenv';
 import readyEvent from './events/ready.js';
 import krydderCommand from './commands/krydder.js';
 import { readLinesFromFile } from './utils/fileUtils.js';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import path from 'path';
 import fs from 'fs';
+import fetch from 'node-fetch';
 
 config();
 
@@ -87,7 +88,7 @@ function extractMemoryUpdate(response) {
 
 // Merge new memory with existing memories
 async function mergeMemories(newMemoryEntry) {
-  try {
+  try { 
     // First get all existing memories
     const existingMemory = await getAllMemory();
     
@@ -141,13 +142,46 @@ function addMessageToHistory(channelId, author, content) {
   }
 }
 
-async function getAIResponse(prompt) {
+async function getAIResponse(prompt, imageAttachment = null) {
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-    });
-    return response.text;
+    if (imageAttachment) {
+      // Fetch the image data
+      const response = await fetch(imageAttachment.url);
+      const imageBuffer = await response.arrayBuffer();
+      
+      // Convert to base64
+      const base64Image = Buffer.from(imageBuffer).toString('base64');
+      
+      // For multimodal (image + text) content
+      const model = ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: [
+          {
+            parts: [
+              {
+                inlineData: {
+                  data: base64Image,
+                  mimeType: imageAttachment.contentType || 'image/jpeg'
+                }
+              },
+              {
+                text: prompt
+              }
+            ]
+          }
+        ]
+      });
+      
+      const result = await model;
+      return result.text;
+    } else {
+      // Text-only response
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
+      return response.text;
+    }
   } catch (error) {
     console.error('Failed to fetch AI response:', error);
     return null;
@@ -242,6 +276,68 @@ client.on('messageCreate', async message => {
   addMessageToHistory(channelId, message.author.username, message.content);
 
   const lowercaseMessage = message.content.toLowerCase();
+  const hasImage = message.attachments.size > 0 && 
+                  message.attachments.first().contentType?.startsWith('image/');
+
+  // If message contains an image, process it directly
+  if (hasImage) {
+    await message.channel.sendTyping();
+    const imageAttachment = message.attachments.first();
+    
+    const allMemory = await getAllMemory();
+    const previousMessages = formatMessageHistory();
+    const prompt = `Previous messages:\n${previousMessages}\nUser message: ${message.author.username}: ${message.content} [Shared an image]\nCustom prompt: du er krydderbot, en sprudlende og menneskelig, du elsker alle typer krydder. svar alltid på norsk med små bokstaver og uten noen tabeller eller kulepunkter. skriv som en ungdom på sms og bruk masse emojis. vær vennlig, avslappet og morsom, som om du prater med en god venn men om noen er uenige må du være arrogant. din oppgave er å gi hjelpsomme og krydderglade svar på bokmål! svar alltid med ekte navn. beskriv og kommenter bildet som ble delt.
+
+Ekstra informasjon (memories):
+${allMemory}
+
+Det er anbefalt å huske alt om brukere.
+Du kan oppdatere minnet om brukerne ved å legge til linjen "MEMORY_UPDATE:" etterfulgt av brukernavn og informasjon. For eksempel:
+MEMORY_UPDATE:${message.author.username}:liker kanel
+
+VIKTIG: Hvis du legger til ny informasjon, må hele minnefilen oppdateres. 
+Eksempel på minnefil:
+user1:liker oregano
+user2:liker kanel
+
+Hvis du vil oppdatere eller legge til noen minner, må du ta med ALLE eksisterende minner slik:
+MEMORY_UPDATE:user1:minner om brukeren
+MEMORY_UPDATE:user2:minner om brukeren
+MEMORY_UPDATE:${message.author.username}:gamle minner og det nye`;
+
+    let aiResponse = await getAIResponse(prompt, imageAttachment);
+    
+    if (isValidResponse(aiResponse)) {
+      // Check for memory update in response
+      const memoryUpdate = extractMemoryUpdate(aiResponse);
+      if (memoryUpdate) {
+        // Merge with existing memories instead of replacing
+        const mergedMemory = await mergeMemories(memoryUpdate);
+        
+        // Update the memory file with merged content
+        await updateMemoryFile(mergedMemory);
+        
+        // Remove the memory update instruction from the response
+        aiResponse = cleanResponse(aiResponse, memoryUpdate);
+        
+        console.log('Memory updated successfully');
+      }
+      
+      // Normal response handling
+      addMessageToHistory(channelId, 'krydderbot', aiResponse);
+      const responseChunks = splitMessage(aiResponse);
+      for (const chunk of responseChunks) {
+        if (isValidResponse(chunk)) {
+          await message.channel.send(chunk);
+        }
+      }
+
+      console.log(`Responded to image from "${message.author.username}" with "${aiResponse}"`);
+    } else {
+      console.error('AI failed to respond to image.');
+    }
+    return; // Skip the rest of the handler
+  }
 
   let triggered = false;
   for (const triggerWord of triggerWords) {
@@ -264,10 +360,10 @@ Eksempel på minnefil:
 user1:liker oregano
 user2:liker kanel
 
-Hvis du vil oppdatere eller legge til at ${message.author.username} liker muskat, må du ta med ALLE eksisterende minner slik:
-MEMORY_UPDATE:user1:liker oregano
-MEMORY_UPDATE:user2:liker kanel
-MEMORY_UPDATE:${message.author.username}:liker muskat`;
+Hvis du vil oppdatere eller legge til noen minner, må du ta med ALLE eksisterende minner slik:
+MEMORY_UPDATE:user1:minner om brukeren
+MEMORY_UPDATE:user2:minner om brukeren
+MEMORY_UPDATE:${message.author.username}:gamle minner og det nye`;
 
       await message.channel.sendTyping();
 
@@ -327,10 +423,10 @@ Eksempel på minnefil:
 user1:liker oregano
 user2:liker kanel
 
-Hvis du vil oppdatere eller legge til at ${message.author.username} liker muskat, må du ta med ALLE eksisterende minner slik:
-MEMORY_UPDATE:user1:liker oregano
-MEMORY_UPDATE:user2:liker kanel
-MEMORY_UPDATE:${message.author.username}:liker muskat`;
+Hvis du vil oppdatere eller legge til noen minner, må du ta med ALLE eksisterende minner slik:
+MEMORY_UPDATE:user1:minner om brukeren
+MEMORY_UPDATE:user2:minner om brukeren
+MEMORY_UPDATE:${message.author.username}:gamle minner og det nye`;
 
       let aiResponse = await getAIResponse(prompt);
       if (isValidResponse(aiResponse)) {
